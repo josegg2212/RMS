@@ -1,0 +1,10 @@
+services:
+  rms_pytorch:
+    build: .
+    image: rms_pytorch
+    container_name: rms_pytorch
+    volumes:
+      - ./src:/home/code
+    tty: true
+    stdin_open: true
+    gpus: all
