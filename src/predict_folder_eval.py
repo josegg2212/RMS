@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -173,28 +172,25 @@ def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", type=str, default="frcnn_personas.pth")
-    parser.add_argument("--input_dir", type=str, default="dataset_personas/test")
-    parser.add_argument("--output_dir", type=str, default="out_test")
-    parser.add_argument("--threshold", type=float, default=0.25)  # para dibujar + PR
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--class_name", type=str, default="Person")
-    parser.add_argument("--min_score_for_map", type=float, default=0.05)
-    args = parser.parse_args()
+    weights = "frcnn_personas.pth"
+    input_dir = "dataset_personas/test"
+    output_dir = "out_test"
+    threshold = 0.25  # para dibujar + PR
+    device = "cuda"
+    class_name = "Person"
+    min_score_for_map = 0.05
 
-    device = args.device
     if device == "cuda" and not torch.cuda.is_available():
         device = "cpu"
         print("CUDA no disponible, usando CPU.")
 
     model = get_model(num_classes=2)
-    sd = torch.load(args.weights, map_location="cpu")
+    sd = torch.load(weights, map_location="cpu")
     model.load_state_dict(sd)
     model.to(device).eval()
 
-    in_dir = Path(args.input_dir)
-    out_dir = Path(args.output_dir)
+    in_dir = Path(input_dir)
+    out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -225,13 +221,13 @@ def main():
 
         # GT si existe xml
         xml_path = img_path.with_suffix(".xml")
-        gt_boxes = parse_voc_xml(xml_path, class_name=args.class_name)
+        gt_boxes = parse_voc_xml(xml_path, class_name=class_name)
         if xml_path.exists():
             has_any_xml = True
         gts_all.append(gt_boxes)
 
         # Dibujar detecciones por threshold
-        draw_keep = scores >= args.threshold
+        draw_keep = scores >= threshold
         draw_boxes = boxes[draw_keep]
         draw_scores = scores[draw_keep]
 
@@ -250,14 +246,14 @@ def main():
 
     # Métricas finales (si hay XML)
     if has_any_xml:
-        prec, rec = precision_recall_at(preds_all, gts_all, conf_th=args.threshold, iou_th=0.5)
-        ap50 = ap_at_iou(preds_all, gts_all, iou_th=0.5, min_score_for_map=args.min_score_for_map)
+        prec, rec = precision_recall_at(preds_all, gts_all, conf_th=threshold, iou_th=0.5)
+        ap50 = ap_at_iou(preds_all, gts_all, iou_th=0.5, min_score_for_map=min_score_for_map)
         iou_ths = [0.50 + 0.05 * i for i in range(10)]
-        map5095 = sum(ap_at_iou(preds_all, gts_all, iou_th=t, min_score_for_map=args.min_score_for_map) for t in iou_ths) / len(iou_ths)
+        map5095 = sum(ap_at_iou(preds_all, gts_all, iou_th=t, min_score_for_map=min_score_for_map) for t in iou_ths) / len(iou_ths)
 
         print("\n================= TEST METRICS =================")
-        print(f"Precision (conf={args.threshold}, IoU=0.5): {prec:.3f}")
-        print(f"Recall    (conf={args.threshold}, IoU=0.5): {rec:.3f}")
+        print(f"Precision (conf={threshold}, IoU=0.5): {prec:.3f}")
+        print(f"Recall    (conf={threshold}, IoU=0.5): {rec:.3f}")
         print(f"mAP@0.5: {ap50:.3f}")
         print(f"mAP@0.5:0.95: {map5095:.3f}")
         print("================================================\n")

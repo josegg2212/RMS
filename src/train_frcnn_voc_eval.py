@@ -1,4 +1,3 @@
-import argparse
 import time
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -278,45 +277,42 @@ def evaluate_detection(model, dataloader, device, conf_th=0.25, min_score_for_ma
 # Train loop + valid por época + resumen
 # -----------------------------
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--train_dir", type=str, default="dataset_personas/train")
-    parser.add_argument("--valid_dir", type=str, default="dataset_personas/valid")
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=2)
-    parser.add_argument("--lr", type=float, default=0.005)
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--num_workers", type=int, default=2)
-    parser.add_argument("--out", type=str, default="frcnn_personas.pth")
-    parser.add_argument("--save_best", action="store_true")
-    parser.add_argument("--conf_th", type=float, default=0.25)
-    parser.add_argument("--min_score_for_map", type=float, default=0.05)
-    args = parser.parse_args()
+    train_dir = "dataset_personas/train"
+    valid_dir = "dataset_personas/valid"
+    epochs = 10
+    batch_size = 2
+    lr = 0.005
+    device = "cuda"
+    num_workers = 2
+    out = "frcnn_personas.pth"
+    save_best = False
+    conf_th = 0.25
+    min_score_for_map = 0.05
 
-    device = args.device
     if device == "cuda" and not torch.cuda.is_available():
         device = "cpu"
         print("CUDA no disponible, usando CPU.")
 
-    train_ds = VOCFolderDataset(args.train_dir, class_name="Person")
-    valid_ds = VOCFolderDataset(args.valid_dir, class_name="Person")
+    train_ds = VOCFolderDataset(train_dir, class_name="Person")
+    valid_ds = VOCFolderDataset(valid_dir, class_name="Person")
 
     train_dl = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers, collate_fn=collate_fn
+        train_ds, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, collate_fn=collate_fn
     )
     valid_dl = DataLoader(
         valid_ds, batch_size=1, shuffle=False,
-        num_workers=args.num_workers, collate_fn=collate_fn
+        num_workers=num_workers, collate_fn=collate_fn
     )
 
     model = get_model(num_classes=2).to(device)
     model.train()
 
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.SGD(params, lr=args.lr, momentum=0.9, weight_decay=0.0005)
+    optimizer = torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=0.0005)
 
     print(f"Train images: {len(train_ds)} | Valid images: {len(valid_ds)} | device: {device}")
-    print(f"epochs={args.epochs} batch_size={args.batch_size} lr={args.lr} conf_th={args.conf_th}")
+    print(f"epochs={epochs} batch_size={batch_size} lr={lr} conf_th={conf_th}")
 
     history = []
     best_map50 = -1.0
@@ -324,7 +320,7 @@ def main():
 
     t0_total = time.time()
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(1, epochs + 1):
         if device == "cuda":
             torch.cuda.synchronize()
         t0 = time.time()
@@ -348,7 +344,7 @@ def main():
             if step == 1 or step % 20 == 0:
                 loss_parts = {k: float(v.detach().cpu()) for k, v in loss_dict.items()}
                 avg_loss = running_loss / step
-                print(f"[Epoch {epoch}/{args.epochs}] step {step}/{len(train_dl)} "
+                print(f"[Epoch {epoch}/{epochs}] step {step}/{len(train_dl)} "
                       f"avg_loss={avg_loss:.4f} parts={loss_parts}")
 
         avg_train_loss = running_loss / max(1, len(train_dl))
@@ -356,8 +352,8 @@ def main():
         # Validación
         val_metrics = evaluate_detection(
             model, valid_dl, device=device,
-            conf_th=args.conf_th,
-            min_score_for_map=args.min_score_for_map
+            conf_th=conf_th,
+            min_score_for_map=min_score_for_map
         )
 
         if device == "cuda":
@@ -380,22 +376,22 @@ def main():
         )
 
         # Guardar best
-        if args.save_best and val_metrics["map50"] > best_map50:
+        if save_best and val_metrics["map50"] > best_map50:
             best_map50 = val_metrics["map50"]
             best_epoch = epoch
-            torch.save(model.state_dict(), args.out)
-            print(f"  -> NEW BEST (mAP50={best_map50:.3f}) saved to {args.out}")
+            torch.save(model.state_dict(), out)
+            print(f"  -> NEW BEST (mAP50={best_map50:.3f}) saved to {out}")
 
     total_time = time.time() - t0_total
 
     # Si no save_best, guarda al final
-    if not args.save_best:
-        torch.save(model.state_dict(), args.out)
+    if not save_best:
+        torch.save(model.state_dict(), out)
 
     # Resumen final
     best = max(history, key=lambda x: x["map50"]) if history else None
     print("\n================= TRAIN SUMMARY =================")
-    print(f"Total time: {total_time/60:.2f} min | saved: {args.out}")
+    print(f"Total time: {total_time/60:.2f} min | saved: {out}")
     if best is not None:
         print(f"Best epoch (by mAP50): {best['epoch']} | "
               f"P={best['precision']:.3f} R={best['recall']:.3f} "
