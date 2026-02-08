@@ -72,6 +72,6 @@ Notas:
 - `src/predict_detr.py` — inferencia/evaluacion con DETR y guardado de metricas/imagenes.
 - `src/frcnn_personas.pth` — pesos generados por entrenamiento (no incluidos en un repo limpio).
 - `src/detr_personas.pth` — pesos generados por entrenamiento (no incluidos en un repo limpio).
-- `src/fused/` — dataset fusionado esperado (train/test/Annotations).
+- `src/fused/` — dataset fusionado esperado (train/test/Annotations). También estás las anotaciones y las imágenes demo.
 - `src/Annotation/` — carpeta auxiliar para anotaciones (opcional).
-- `src/results/` — salidas de entrenamiento y prediccion.
+- `src/results/` — salidas de entrenamiento y prediccion. El test final (demo) está en predict_frcnn_20260208... .
