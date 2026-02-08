@@ -1,0 +1,15 @@
+TRAIN SUMMARY
+run_dir: results/train_frcnn_20260205_174410
+total_time_min: 728.29
+best_epoch: 2
+best_map50: 0.9441015764628307
+best_map5095: 0.5641329548072697
+best_precision: 0.9693877551019123
+best_recall: 0.8811129848228281
+last_epoch: 10
+last_map50: 0.8896487305069914
+last_map5095: 0.5117700191085586
+last_precision: 0.83623776557641
+last_recall: 0.8438930378221098
+weights_path: results/train_frcnn_20260205_174410/frcnn_personas.pth
+weights_alias: frcnn_personas.pth

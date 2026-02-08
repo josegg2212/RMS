@@ -1,0 +1,31 @@
+{
+  "train_dir": "fused/train",
+  "valid_dir": "fused/test",
+  "annotations_dir": "fused/Annotations",
+  "epochs": 10,
+  "batch_size": 2,
+  "lr": 1e-05,
+  "device": "cuda",
+  "num_workers": 0,
+  "out": "detr_personas.pth",
+  "save_best": true,
+  "conf_th": 0.9,
+  "min_score_for_map": 0.05,
+  "base_model": "facebook/detr-resnet-50",
+  "image_mean": [
+    0.19630877966050161,
+    0.1903079616632919,
+    0.12459238259621531,
+    0.2914455310556421
+  ],
+  "image_std": [
+    0.19535953989083024,
+    0.19516226791592045,
+    0.18131376178315223,
+    0.19002960530299567
+  ],
+  "run_dir": "results/train_detr_20260206_184115",
+  "train_images": 12025,
+  "valid_images": 3463,
+  "started_at": "2026-02-06T18:41:15.534682"
+}

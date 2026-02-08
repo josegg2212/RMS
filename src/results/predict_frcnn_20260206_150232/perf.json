@@ -1,0 +1,17 @@
+{
+  "num_images": 3463,
+  "image_time_avg_s": 0.23644136813239594,
+  "image_time_p50_s": 0.23611619698931463,
+  "image_time_p95_s": 0.2564335010247305,
+  "infer_time_avg_s": 0.11663340196409155,
+  "infer_time_p50_s": 0.11628501198720187,
+  "infer_time_p95_s": 0.1177838769799564,
+  "fps_infer_avg": 8.573873205789491,
+  "gpu": {
+    "gpu_available": true,
+    "max_mem_allocated_bytes": 592189440,
+    "max_mem_reserved_bytes": 700448768,
+    "nvidia_smi_util_gpu_pct": null,
+    "nvidia_smi_util_mem_pct": null
+  }
+}

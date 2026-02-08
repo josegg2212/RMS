@@ -1,0 +1,13 @@
+{
+  "total_time_s": 43697.19632935524,
+  "avg_epoch_time_s": 4369.572200536728,
+  "avg_batch_time_s": 0.4936625577820569,
+  "p95_batch_time_s": 0.49756932898890227,
+  "gpu": {
+    "gpu_available": true,
+    "max_mem_allocated_bytes": 2658648576,
+    "max_mem_reserved_bytes": 3718250496,
+    "nvidia_smi_util_gpu_pct": null,
+    "nvidia_smi_util_mem_pct": null
+  }
+}

@@ -1,0 +1,15 @@
+TRAIN SUMMARY
+run_dir: results/train_detr_20260206_184115
+total_time_min: 845.43
+best_epoch: 6
+best_map50: 0.9353751572641996
+best_map5095: 0.5856608227596131
+best_precision: 0.8914434700164859
+best_recall: 0.9060467357262219
+last_epoch: 10
+last_map50: 0.9347125561815677
+last_map5095: 0.5568979852860516
+last_precision: 0.7945603654104854
+last_recall: 0.9219465189109947
+weights_path: results/train_detr_20260206_184115/detr_personas.pth
+weights_alias: detr_personas.pth

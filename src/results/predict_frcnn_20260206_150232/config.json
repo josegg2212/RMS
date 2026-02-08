@@ -1,0 +1,25 @@
+{
+  "weights": "frcnn_personas.pth",
+  "input_dir": "fused/test",
+  "annotations_dir": "fused/Annotations",
+  "output_dir": "results/predict_frcnn_20260206_150232/images",
+  "threshold": 0.9,
+  "device": "cuda",
+  "class_name": "Person",
+  "min_score_for_map": 0.05,
+  "image_mean": [
+    0.19630877966050161,
+    0.1903079616632919,
+    0.12459238259621531,
+    0.2914455310556421
+  ],
+  "image_std": [
+    0.19535953989083024,
+    0.19516226791592045,
+    0.18131376178315223,
+    0.19002960530299567
+  ],
+  "run_dir": "results/predict_frcnn_20260206_150232",
+  "num_images": 3463,
+  "started_at": "2026-02-06T15:02:32.883065"
+}

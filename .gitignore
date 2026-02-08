@@ -1,0 +1,12 @@
+# Comprimidos / modelos / anotaciones
+*.rar
+*.xml
+*.pth
+
+# Imágenes: ignorar todo...
+*.png
+# ...pero permitir estas concretas (en cualquier carpeta)
+!score_histogram.png
+!map.png
+!precision_recall.png
+!train_loss.png
