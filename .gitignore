@@ -10,3 +10,11 @@
 !map.png
 !precision_recall.png
 !train_loss.png
+
+# Excepciones: no ignorar resultados/sets específicos
+!src/results/predict_frcnn_20260208_213028/
+!src/results/predict_frcnn_20260208_213028/**
+!src/fused/Annotation_test_final/
+!src/fused/Annotation_test_final/**
+!src/fused/test_final/
+!src/fused/test_final/**
