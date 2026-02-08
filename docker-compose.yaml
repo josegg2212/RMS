@@ -1,10 +1,12 @@
 services:
   rms_pytorch:
-    build: .
+    build: ./docker
     image: rms_pytorch
     container_name: rms_pytorch
     volumes:
       - ./src:/home/code
     tty: true
     stdin_open: true
+    runtime: nvidia
     gpus: all
+    network_mode: host

@@ -1,0 +1,7 @@
+{
+  "started_at": "2026-02-06T15:02:32.883065",
+  "ended_at": "2026-02-06T15:19:30.729725",
+  "num_images": 3463,
+  "run_dir": "results/predict_frcnn_20260206_150232",
+  "images_dir": "results/predict_frcnn_20260206_150232/images"
+}

@@ -1,0 +1,7 @@
+{
+  "started_at": "2026-02-07T10:40:45.647007",
+  "ended_at": "2026-02-07T10:54:22.730874",
+  "num_images": 4200,
+  "run_dir": "results/predict_detr_20260207_104045",
+  "images_dir": "results/predict_detr_20260207_104045/images"
+}

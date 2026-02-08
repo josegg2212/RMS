@@ -1,0 +1,7 @@
+{
+  "started_at": "2026-02-05T17:44:10.317000",
+  "ended_at": "2026-02-06T05:53:38.228988",
+  "total_images_train": 12025,
+  "total_images_valid": 3463,
+  "run_dir": "results/train_frcnn_20260205_174410"
+}
