@@ -11,4 +11,4 @@ RUN python3 -m pip install -U pip setuptools wheel && \
     python3 -m pip install --no-cache-dir transformers timm matplotlib scipy
 
 # Ejecutar entrenamiento al arrancar el contenedor
-CMD ["python3", "/home/code/predict_folder_eval.py"]
+CMD ["python3", "/home/code/train_frcnn.py"]
