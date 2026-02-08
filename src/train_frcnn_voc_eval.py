@@ -21,6 +21,9 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_Res
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 
+# -----------------------------
+# Logging
+# -----------------------------
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -38,7 +41,7 @@ logger = setup_logging()
 # - Dataset lee imagenes RGBA y cajas desde XML VOC.
 # - Modelo preentrenado se adapta a 4 canales y a 2 clases (bg + Person).
 # - Entrenamiento por epoca con validacion y metricas basicas.
-# - Guardado del mejor modelo segun mAP@0.5.
+# - Guardado del mejor modelo segun mAP@0.5 (precision promedio con solape 0.5).
 # Cambios vs pipeline 3ch:
 # - Imagenes en RGBA (4 canales).
 # - Conv1 acepta 4 canales y el canal extra hereda promedio RGB.
@@ -47,8 +50,7 @@ logger = setup_logging()
 
 
 # --- Dataset VOC en carpeta ---
-# Soporta imagenes y XML en la misma carpeta o en annotations_dir.
-# Solo mantiene cajas de la clase objetivo.
+# Lee imagenes y cajas desde XML. Filtra solo la clase objetivo.
 
 class VOCFolderDataset(Dataset):
     def __init__(self, folder: str, class_name: str = "Person", annotations_dir: str = None):
@@ -62,6 +64,7 @@ class VOCFolderDataset(Dataset):
     def __len__(self):
         return len(self.images)
 
+    # Lee el XML y devuelve cajas + labels de la clase objetivo
     def _parse_xml(self, xml_path: Path):
         boxes = []
         labels = []
@@ -109,6 +112,7 @@ class VOCFolderDataset(Dataset):
         else:
             xml_path = img_path.with_suffix(".xml")
 
+        # Carga en RGBA y pasa a tensor (C,H,W)
         img = Image.open(img_path).convert("RGBA")
         image = TF.to_tensor(img)
 
@@ -123,15 +127,16 @@ class VOCFolderDataset(Dataset):
 
 
 # --- Collate para listas de imagenes/targets (Faster R-CNN) ---
+# El modelo espera una lista de imagenes y una lista de targets.
 
 def collate_fn(batch):
     return tuple(zip(*batch))
 
 
 # --- Modelo: adaptacion a 4 canales + cabeza de 2 clases ---
+# Ajusta la primera capa para aceptar 4 canales, manteniendo pesos.
 
-# Ajusta conv1 para 4 canales conservando pesos preentrenados.
-
+# Reemplaza la primera convolucion por una de 4 canales
 def _patch_first_conv_for_4ch(model):
     old_conv = model.backbone.body.conv1
     new_conv = torch.nn.Conv2d(
@@ -150,7 +155,7 @@ def _patch_first_conv_for_4ch(model):
     model.backbone.body.conv1 = new_conv
 
 
-# Crea el modelo y aplica mean/std de 4 canales.
+# Crea el modelo base y ajusta normalizacion/clases
 
 def get_model(num_classes: int = 2, image_mean=None, image_std=None):
     weights = FasterRCNN_ResNet50_FPN_Weights.DEFAULT
@@ -168,7 +173,8 @@ def get_model(num_classes: int = 2, image_mean=None, image_std=None):
 
 
 # --- Metricas de deteccion (1 clase) ---
-# Precision/Recall a un umbral y mAP con interpolacion tipo COCO.
+# IoU = solape entre caja predicha y real. mAP = precision promedio.
+# Precision/Recall con umbral y AP promediando la curva de precision.
 
 @torch.no_grad()
 def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
@@ -211,6 +217,7 @@ def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
     return precision, recall
 
 
+# AP@IoU con interpolacion (101 puntos)
 def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     records = []
     total_gt = sum(int(gt["boxes"].shape[0]) for gt in gts)
@@ -274,7 +281,7 @@ def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
 
 
 # --- Evaluacion de deteccion sobre un DataLoader ---
-# Devuelve precision/recall y mAP (0.5 y 0.5:0.95).
+# Devuelve precision/recall y mAP con varios umbrales de IoU (solape).
 
 @torch.no_grad()
 def evaluate_detection(model, dataloader, device, conf_th=0.25, min_score_for_map=0.05):
@@ -317,6 +324,7 @@ def evaluate_detection(model, dataloader, device, conf_th=0.25, min_score_for_ma
     }
 
 
+# Crea carpeta de corrida con timestamp
 def make_run_dir(root: str, prefix: str) -> Path:
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(root) / f"{prefix}_{run_id}"
@@ -324,10 +332,12 @@ def make_run_dir(root: str, prefix: str) -> Path:
     return run_dir
 
 
+# Guarda diccionario en JSON formateado
 def save_json(path: Path, data: dict):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+# Guarda filas (dict) en CSV
 def save_csv(path: Path, rows, fieldnames):
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -336,6 +346,7 @@ def save_csv(path: Path, rows, fieldnames):
             writer.writerow(row)
 
 
+# Grafica curvas de entrenamiento y metricas
 def plot_training_curves(history, run_dir: Path):
     if not history:
         return
@@ -384,11 +395,13 @@ def plot_training_curves(history, run_dir: Path):
     plt.close()
 
 
+# Sincroniza CUDA para medir tiempos con precision
 def _safe_cuda_sync(device: str):
     if device == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize()
 
 
+# Snapshot simple de uso/memoria GPU (si hay CUDA)
 def _gpu_snapshot():
     if not torch.cuda.is_available():
         return {
@@ -427,7 +440,7 @@ def _gpu_snapshot():
 
 
 # --- Entrenamiento principal ---
-# Configura rutas, hiperparametros y ejecuta train/valid por epoca.
+# Configura rutas, parametros y ejecuta train/valid por epoca.
 
 def main():
     # --- Configuracion principal ---
@@ -666,6 +679,7 @@ def main():
     }
     save_json(run_dir / "run_info.json", run_info)
 
+    # Percentil simple para tiempos (sin numpy)
     def _percentile(xs, p):
         if not xs:
             return None

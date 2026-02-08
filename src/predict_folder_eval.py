@@ -22,6 +22,9 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN_Res
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 
+# -----------------------------
+# Logging
+# -----------------------------
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -39,7 +42,7 @@ logger = setup_logging()
 # - Construye Faster R-CNN preentrenado y adapta la primera conv a 4 canales.
 # - Ajusta mean/std de normalizacion para 4 canales (RGB+IR).
 # - Recorre imagenes, hace inferencia, filtra la clase Person y guarda dibujos.
-# - Si existen XML VOC, calcula Precision/Recall y mAP (0.5 y 0.5:0.95).
+# - Si existen XML VOC, calcula Precision/Recall y mAP (precision promedio).
 # Cambios vs pipeline 3ch:
 # - Se usan imagenes RGBA.
 # - Conv1 acepta 4 canales y el canal extra se inicializa con promedio RGB.
@@ -47,7 +50,7 @@ logger = setup_logging()
 # ============================================================================
 
 
-# --- Adaptacion del backbone a 4 canales (RGB+IR) ---
+# --- Adaptacion del backbone (extractor) a 4 canales (RGB+IR) ---
 # Se reemplaza conv1 para aceptar 4 canales y se reutilizan pesos preentrenados.
 # El canal extra se inicializa con el promedio de los 3 canales RGB.
 
@@ -119,7 +122,8 @@ def parse_voc_xml(xml_path: Path, class_name="People"):
 
 
 # --- Metricas basicas de deteccion (1 clase) ---
-# Precision/Recall a un umbral de confianza + AP con interpolacion tipo COCO.
+# IoU = solape entre caja predicha y real. mAP = precision promedio.
+# Precision/Recall a un umbral de confianza + AP con interpolacion (101 puntos).
 
 @torch.no_grad()
 def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
@@ -161,6 +165,7 @@ def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
     return float(precision), float(recall)
 
 
+# AP@IoU con interpolacion (101 puntos, estilo COCO)
 def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     records = []
     total_gt = sum(int(gt.shape[0]) for gt in gts)
@@ -223,6 +228,7 @@ def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     return float(ap)
 
 
+# Crea carpeta de corrida con timestamp
 def make_run_dir(root: str, prefix: str) -> Path:
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(root) / f"{prefix}_{run_id}"
@@ -230,10 +236,12 @@ def make_run_dir(root: str, prefix: str) -> Path:
     return run_dir
 
 
+# Guarda diccionario en JSON formateado
 def save_json(path: Path, data: dict):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+# Guarda filas (dict) en CSV
 def save_csv(path: Path, rows, fieldnames):
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -242,6 +250,7 @@ def save_csv(path: Path, rows, fieldnames):
             writer.writerow(row)
 
 
+# Histograma de scores para diagnostico
 def plot_score_histogram(scores_list, run_dir: Path):
     if not scores_list:
         return
@@ -261,11 +270,13 @@ def plot_score_histogram(scores_list, run_dir: Path):
     plt.close()
 
 
+# Sincroniza CUDA para medir tiempos con precision
 def _safe_cuda_sync(device: str):
     if device == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize()
 
 
+# Snapshot simple de uso/memoria GPU (si hay CUDA)
 def _gpu_snapshot():
     if not torch.cuda.is_available():
         return {
@@ -527,6 +538,7 @@ def main():
     }
     save_json(run_dir / "run_info.json", run_info)
 
+    # Percentil simple para tiempos (sin numpy)
     def _percentile(xs, p):
         if not xs:
             return None

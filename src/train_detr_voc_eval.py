@@ -21,6 +21,9 @@ from torchvision.ops import box_iou
 from transformers import DetrForObjectDetection
 
 
+# -----------------------------
+# Logging
+# -----------------------------
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -35,7 +38,7 @@ logger = setup_logging()
 # ============================================================================
 # TRAIN DETR (1-stage, end-to-end) + VOC XML + 4 canales (RGBA / RGB+IR)
 #
-# Estructura equivalente a tu train_frcnn_voc_eval.py:
+# Estructura del script:
 #  1) Config
 #  2) Dataset (VOC XML)
 #  3) Collate
@@ -45,9 +48,10 @@ logger = setup_logging()
 #  7) Save best
 #
 # CAMBIOS vs Faster R-CNN (2-stages):
-# - Faster R-CNN: Backbone + RPN + RoIHeads, targets: boxes XYXY + labels.
-# - DETR: Backbone + Transformer + queries. No RPN, no RoIHeads.
-#         targets: class_labels + boxes NORMALIZADAS en formato cxcywh.
+# - Faster R-CNN: backbone (extractor) + RPN (propuestas) + RoIHeads (clasificador de regiones).
+#   targets: cajas XYXY + labels.
+# - DETR: backbone + Transformer (atencion) + queries (consultas). No RPN ni RoIHeads.
+#         targets: class_labels + cajas normalizadas en formato cxcywh (centro x/y, ancho/alto).
 # - HuggingFace DetrImageProcessor NO soporta bien 4 canales en preprocess;
 #   por eso hacemos el preprocess manual (normalize + padding + pixel_mask).
 # ============================================================================
@@ -125,8 +129,9 @@ class VOCFolderDataset(Dataset):
 # -----------------------------
 def patch_first_conv_to_4ch(model: torch.nn.Module) -> bool:
     """
-    Similar a tu patch en Faster R-CNN, pero aquí el backbone está dentro de transformers.
+    Parchea la primera Conv2d del backbone (extractor) para aceptar 4 canales.
     Busca la primera Conv2d con in_channels=3 y la reemplaza por in_channels=4.
+    Devuelve True si el parche se aplico.
     """
     for module in model.modules():
         for name, child in list(module.named_children()):
@@ -154,7 +159,7 @@ def patch_first_conv_to_4ch(model: torch.nn.Module) -> bool:
 
 # -----------------------------
 # Conversión cajas: XYXY pix -> cxcywh normalizado [0..1]
-# (DETR espera esto en labels)
+# cxcywh = centro x/y, ancho/alto. DETR espera este formato en labels.
 # -----------------------------
 def xyxy_pix_to_cxcywh_norm(boxes_xyxy: torch.Tensor, h: int, w: int) -> torch.Tensor:
     if boxes_xyxy.numel() == 0:
@@ -171,8 +176,8 @@ def xyxy_pix_to_cxcywh_norm(boxes_xyxy: torch.Tensor, h: int, w: int) -> torch.T
 # Preprocess manual para DETR con 4ch
 # CAMBIO vs Faster:
 # - Faster: transform de torchvision + model(images, targets) directo.
-# - DETR: necesita pixel_values + pixel_mask + labels (class_labels, boxes norm).
-# Además, HuggingFace processor falla con 4ch => manual.
+# - DETR: necesita pixel_values + pixel_mask (mascara de pixels validos) + labels.
+# Además, el processor de HuggingFace falla con 4ch => manual.
 # -----------------------------
 def make_collate_fn_4ch(image_mean, image_std):
     mean = torch.tensor(image_mean, dtype=torch.float32).view(4, 1, 1)
@@ -241,7 +246,7 @@ def make_collate_fn_4ch(image_mean, image_std):
 # Postprocess DETR: outputs -> boxes XYXY en píxeles + scores
 # CAMBIO vs Faster:
 # - Faster devuelve cajas finales directamente.
-# - DETR devuelve pred_boxes (cxcywh norm) y logits; hay que convertir.
+# - DETR devuelve pred_boxes (cxcywh normalizado) y logits (puntajes); hay que convertir.
 # -----------------------------
 @torch.no_grad()
 def detr_postprocess(outputs, target_sizes_hw, score_thresh=0.0):
@@ -281,7 +286,7 @@ def detr_postprocess(outputs, target_sizes_hw, score_thresh=0.0):
 
 
 # -----------------------------
-# Métricas (igual que en tus scripts)
+# Métricas basicas (1 clase). IoU = solape entre cajas, mAP = precision promedio.
 # -----------------------------
 @torch.no_grad()
 def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
@@ -324,6 +329,7 @@ def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
     return float(precision), float(recall)
 
 
+# AP@IoU con interpolacion (101 puntos, estilo COCO)
 def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     records = []
     total_gt = sum(int(gt["boxes_xyxy"].shape[0]) for gt in gts)
@@ -382,6 +388,7 @@ def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     return float(ap / 101.0)
 
 
+# Evaluacion completa en un dataloader (postproceso + metricas)
 @torch.no_grad()
 def evaluate_detection(model, dataloader, device, conf_th=0.25, min_score_for_map=0.05):
     model.eval()
@@ -414,6 +421,7 @@ def evaluate_detection(model, dataloader, device, conf_th=0.25, min_score_for_ma
     return {"precision": prec, "recall": rec, "map50": ap50, "map5095": float(map5095)}
 
 
+# Crea carpeta de corrida con timestamp
 def make_run_dir(root: str, prefix: str) -> Path:
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(root) / f"{prefix}_{run_id}"
@@ -421,10 +429,12 @@ def make_run_dir(root: str, prefix: str) -> Path:
     return run_dir
 
 
+# Guarda diccionario en JSON formateado
 def save_json(path: Path, data: dict):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+# Guarda filas (dict) en CSV
 def save_csv(path: Path, rows, fieldnames):
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -433,6 +443,7 @@ def save_csv(path: Path, rows, fieldnames):
             writer.writerow(row)
 
 
+# Grafica curvas de entrenamiento y metricas
 def plot_training_curves(history, run_dir: Path):
     if not history:
         return
@@ -481,11 +492,13 @@ def plot_training_curves(history, run_dir: Path):
     plt.close()
 
 
+# Sincroniza CUDA para medir tiempos con precision
 def _safe_cuda_sync(device: str):
     if device == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize()
 
 
+# Snapshot simple de uso/memoria GPU (si hay CUDA)
 def _gpu_snapshot():
     if not torch.cuda.is_available():
         return {
@@ -523,9 +536,10 @@ def _gpu_snapshot():
     }
 
 
+# Entrenamiento completo y guardado de resultados
 def main():
     # -----------------------------
-    # CONFIG (igual que tu script)
+    # CONFIG principal
     # -----------------------------
     train_dir = "fused/train"
     valid_dir = "fused/test"
@@ -543,7 +557,7 @@ def main():
 
     base_model = "facebook/detr-resnet-50"
 
-    # Tus mean/std 4ch (los que usabas en Faster)
+    # Mean/std 4ch del dataset (RGB+IR)
     image_mean = [0.19630877966050161, 0.1903079616632919, 0.12459238259621531, 0.2914455310556421]
     image_std  = [0.19535953989083024, 0.19516226791592045, 0.18131376178315223, 0.19002960530299567]
     results_root = "results"
@@ -760,6 +774,7 @@ def main():
     }
     save_json(run_dir / "run_info.json", run_info)
 
+    # Percentil simple para tiempos (sin numpy)
     def _percentile(xs, p):
         if not xs:
             return None

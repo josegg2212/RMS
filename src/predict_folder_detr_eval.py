@@ -20,6 +20,9 @@ from torchvision.ops import box_iou
 from transformers import DetrForObjectDetection
 
 
+# -----------------------------
+# Logging
+# -----------------------------
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -36,12 +39,13 @@ logger = setup_logging()
 #
 # CAMBIOS vs predict_folder_eval.py (Faster):
 # - Faster: model([img]) => boxes/scores/labels directos.
-# - DETR: model(pixel_values, pixel_mask) => logits + pred_boxes (cxcywh norm).
+# - DETR: model(pixel_values, pixel_mask) => logits (puntajes) + pred_boxes (cxcywh: centro x/y, ancho/alto).
 #         Hay que postprocesar (softmax + cxcywh->xyxy + escalar a pixeles).
 # - No usamos DetrImageProcessor para preprocess porque 4ch rompe inferencia.
 # ============================================================================
 
 
+# Parchea la primera Conv2d del backbone (extractor) para aceptar 4 canales
 def patch_first_conv_to_4ch(model: torch.nn.Module) -> bool:
     for module in model.modules():
         for name, child in list(module.named_children()):
@@ -67,6 +71,7 @@ def patch_first_conv_to_4ch(model: torch.nn.Module) -> bool:
     return False
 
 
+# Lee anotaciones VOC y devuelve cajas XYXY en pixeles
 def parse_voc_xml(xml_path: Path, class_name="Person"):
     class_name = class_name.strip().lower()
     boxes = []
@@ -97,6 +102,7 @@ def parse_voc_xml(xml_path: Path, class_name="Person"):
     return torch.tensor(boxes, dtype=torch.float32)
 
 
+# Postprocesa salidas DETR a cajas XYXY y scores en pixeles
 @torch.no_grad()
 def detr_postprocess(outputs, h: int, w: int, score_thresh=0.0):
     probs = outputs.logits.softmax(-1)
@@ -124,6 +130,7 @@ def detr_postprocess(outputs, h: int, w: int, score_thresh=0.0):
     return {"boxes": boxes_xyxy, "scores": scores, "labels": labels}
 
 
+# Precision/recall para 1 clase con umbral de confianza
 @torch.no_grad()
 def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
     tp = 0
@@ -164,6 +171,7 @@ def precision_recall_at(preds, gts, conf_th=0.25, iou_th=0.5):
     return float(precision), float(recall)
 
 
+# AP@IoU con interpolacion (101 puntos). IoU = solape entre cajas.
 def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     records = []
     total_gt = sum(int(gt.shape[0]) for gt in gts)
@@ -222,6 +230,7 @@ def ap_at_iou(preds, gts, iou_th=0.5, min_score_for_map=0.05):
     return float(ap / 101.0)
 
 
+# Crea carpeta de corrida con timestamp
 def make_run_dir(root: str, prefix: str) -> Path:
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(root) / f"{prefix}_{run_id}"
@@ -229,10 +238,12 @@ def make_run_dir(root: str, prefix: str) -> Path:
     return run_dir
 
 
+# Guarda diccionario en JSON formateado
 def save_json(path: Path, data: dict):
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+# Guarda filas (dict) en CSV
 def save_csv(path: Path, rows, fieldnames):
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -241,6 +252,7 @@ def save_csv(path: Path, rows, fieldnames):
             writer.writerow(row)
 
 
+# Histograma de scores para diagnostico
 def plot_score_histogram(scores_list, run_dir: Path):
     if not scores_list:
         return
@@ -260,11 +272,13 @@ def plot_score_histogram(scores_list, run_dir: Path):
     plt.close()
 
 
+# Sincroniza CUDA para medir tiempos con precision
 def _safe_cuda_sync(device: str):
     if device == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize()
 
 
+# Snapshot simple de uso/memoria GPU (si hay CUDA)
 def _gpu_snapshot():
     if not torch.cuda.is_available():
         return {
@@ -302,9 +316,10 @@ def _gpu_snapshot():
     }
 
 
+# Ejecucion principal: inferencia y metricas
 def main():
     # -----------------------------
-    # CONFIG (igual que tu script)
+    # CONFIG principal
     # -----------------------------
     weights = "detr_personas.pth"
     input_dir = "fused/test"
@@ -538,6 +553,7 @@ def main():
     }
     save_json(run_dir / "run_info.json", run_info)
 
+    # Percentil simple para tiempos (sin numpy)
     def _percentile(xs, p):
         if not xs:
             return None

@@ -7,17 +7,16 @@ import torchvision.transforms.functional as TF
 
 
 # ============================================================================
-# Calculo de mean/std para imagenes 4 canales (RGB+IR).
-# Pipeline:
+# Calculo de media y desviacion por canal para imagenes 4 canales (RGBA).
+# Pasos:
 # - Recorre carpetas y recolecta rutas de imagenes.
-# - Carga cada imagen como RGBA, acumula suma y suma de cuadrados por canal.
-# - Devuelve mean/std y los imprime para usarlos en entrenamiento/evaluacion.
-# Cambios vs pipeline 3ch:
-# - Se trabaja con 4 canales y se reportan 4 valores.
+# - Carga cada imagen como RGBA y acumula estadisticas por canal.
+# - Devuelve y muestra los 4 valores para usar en entrenamiento/evaluacion.
 # ============================================================================
 
 
 # --- Recorrido de imagenes por directorios y extensiones ---
+# Devuelve rutas de imagen validas segun las extensiones indicadas.
 
 def iter_images(dirs, exts):
     for d in dirs:
@@ -30,6 +29,7 @@ def iter_images(dirs, exts):
 
 
 # --- Acumulacion de estadisticas por canal (4ch) ---
+# Calcula media y desviacion estandar por canal con una sola pasada.
 
 def compute_mean_std(image_paths):
     channel_sum = torch.zeros(4, dtype=torch.float64)
@@ -47,6 +47,7 @@ def compute_mean_std(image_paths):
         if i % 200 == 0:
             print(f"Processed {i} images...")
 
+    # Evita division por cero si no hay imagenes
     if total_pixels == 0:
         raise RuntimeError("No images found. Check your paths and extensions.")
 
@@ -56,7 +57,7 @@ def compute_mean_std(image_paths):
 
 
 # --- CLI principal ---
-# Lee dirs/exts, calcula mean/std y los imprime en formato de lista.
+# Lee carpetas/extensiones, calcula estadisticas y las imprime.
 
 def main():
     # --- Argumentos CLI ---
@@ -88,7 +89,7 @@ def main():
     mean_list = [float(x) for x in mean]
     std_list = [float(x) for x in std]
 
-    # --- Salida en formato listo para copiar ---
+    # --- Salida en formato facil de usar ---
     print("image_mean =", mean_list)
     print("image_std  =", std_list)
     print("Use these in train_frcnn_voc_eval.py (image_mean/image_std).")
